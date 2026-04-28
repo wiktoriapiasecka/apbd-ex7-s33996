@@ -311,4 +311,40 @@ public class AppointmentsController : ControllerBase
 
         return Ok();
     }
+
+    [HttpDelete("{idAppointment:int}")]
+    public async Task<IActionResult> DeleteAppointment([FromRoute] int idAppointment)
+    {
+        var connectionString = _configuration.GetConnectionString("DefaultConnection");
+
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync();
+
+        var checkCommand = new SqlCommand("""
+            SELECT Status
+            FROM dbo.Appointments
+            WHERE IdAppointment = @IdAppointment;
+        """, connection);
+
+        checkCommand.Parameters.Add("@IdAppointment", SqlDbType.Int).Value = idAppointment;
+
+        var status = (string?)await checkCommand.ExecuteScalarAsync();
+
+        if (status == null)
+            return NotFound(new { message = "Appointment not found." });
+
+        if (status == "Completed")
+            return Conflict(new { message = "Cannot delete completed appointment." });
+
+        var deleteCommand = new SqlCommand("""
+            DELETE FROM dbo.Appointments
+            WHERE IdAppointment = @IdAppointment;
+        """, connection);
+
+        deleteCommand.Parameters.Add("@IdAppointment", SqlDbType.Int).Value = idAppointment;
+
+        await deleteCommand.ExecuteNonQueryAsync();
+
+        return NoContent();
+    }
 }
